@@ -24,7 +24,8 @@ try {
 }
 
 const MAX = parseInt(INPUT_MAX_ITEMS, 10);
-const README = path.resolve(process.cwd(), README_PATH);
+const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+const README = path.resolve(workspace, README_PATH);
 const START = "<!-- ACTIVITY:START -->";
 const END = "<!-- ACTIVITY:END -->";
 
