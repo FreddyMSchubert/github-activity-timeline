@@ -55,21 +55,22 @@ runs:
   steps:
     - name: Install dependencies 🔧
       shell: bash
-      working-directory: $GITHUB_ACTION_PATH
       run: |
+        echo "Installing dependencies for action..."
+        cd "$GITHUB_ACTION_PATH"
         npm install --production
 
     - name: Run activity script 🚀
       shell: bash
-      working-directory: $GITHUB_ACTION_PATH
+      run: |
+        cd "$GITHUB_ACTION_PATH"
+        node src/index.js
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        USER: ${{ inputs.username }}
-        MAX_ITEMS: ${{ inputs.max_items }}
-        EVENT_TEMPLATES: ${{ inputs.event_templates }}
-        README_PATH: ${{ inputs.readme_path }}
-      run: |
-        node src/index.js
+        INPUT_USERNAME: ${{ inputs.username }}
+        INPUT_MAX_ITEMS: ${{ inputs.max_items }}
+        INPUT_EVENT_TEMPLATES: ${{ inputs.event_templates }}
+        INPUT_README_PATH: ${{ inputs.readme_path }}
 
 permissions:
   contents: write
