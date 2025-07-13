@@ -66,7 +66,7 @@ runs:
         cd "$GITHUB_ACTION_PATH"
         node src/index.js
       env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
         INPUT_USERNAME: ${{ inputs.username }}
         INPUT_MAX_ITEMS: ${{ inputs.max_items }}
         INPUT_EVENT_TEMPLATES: ${{ inputs.event_templates }}
