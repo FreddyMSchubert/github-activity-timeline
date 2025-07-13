@@ -12,34 +12,34 @@ Live-inject recent GitHub events into your README with a highly customizable JSO
 name: Update Activity Timeline
 
 on:
-	workflow_dispatch:
-		schedule:
-			- cron: '0 \* \* \* \*' # Customize CRON run timing - like this it runs hourly
+  workflow_dispatch:
+    schedule:
+      - cron: '0 \* \* \* \*' # Customize CRON run timing - like this it runs hourly
 
 jobs:
-	update:
-		runs-on: ubuntu-latest
-		steps:
-			- uses: actions/checkout@v3
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-			- name: Fetch & Render Activity
-				uses: FreddyMSchubert/github-activity-timeline@main
-				with:
-					github_token: ${{ secrets.GITHUB_TOKEN }}
-					username:      'YourUser' # Insert your username here
-					max_items:     '5'
-					event_templates: > # Customize what to display here
-						{ /* see "Configuration" below */ }
+      - name: Fetch & Render Activity
+        uses: FreddyMSchubert/github-activity-timeline@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          username: "YourUser" # Insert your username here
+          max_items: "5"
+          event_templates: > # Customize what to display here
+            { /* see "Configuration" below */ }
 
-			- name: Commit & Push
-				run: |
-					git config user.name "github-actions[bot]"
-					git config user.email "github-actions[bot]@users.noreply.github.com"
-					git add README.md && git diff --cached --quiet || git commit -m "chore: update activity"
-			- uses: ad-m/github-push-action@v0.6.0
-				with:
-					github_token: ${{ secrets.GITHUB_TOKEN }}
-					branch: 'main'
+      - name: Commit & Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md && git diff --cached --quiet || git commit -m "chore: update activity"
+      - uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: "main"
 ```
 
 > If you don't want to dive deep into the customization opportunities, you can copy [my config](https://github.com/FreddyMSchubert/FreddyMSchubert/blob/main/.github/workflows/activity.yml).
