@@ -1,0 +1,30 @@
+name: "GH Recent Activity Widget"
+description: "📝 Fetch your GH activity and inject into README.md"
+author: "FreddyMSchubert <github@frederickschubert.de>"
+branding:
+  icon: "activity"
+  color: "blue"
+
+inputs:
+  github_token:
+    description: "GitHub token with repo scopes"
+    required: true
+    default: ${{ github.token }}
+  username:
+    description: "GitHub user to fetch events for"
+    required: true
+  max_items:
+    description: "How many events to show"
+    required: false
+    default: "5"
+  readme_path:
+    description: "Path to README file"
+    required: false
+    default: "README.md"
+
+runs:
+  using: "node16"
+  main: "src/index.js"
+
+permissions:
+  contents: write

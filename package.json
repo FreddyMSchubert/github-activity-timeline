@@ -1,0 +1,8 @@
+{
+	"name": "github-activity-timeline",
+	"version": "1.0.0",
+	"main": "src/index.js",
+	"dependencies": {
+		"@octokit/graphql": "^5.0.0"
+	}
+}
