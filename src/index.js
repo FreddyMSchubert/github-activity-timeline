@@ -1,103 +1,132 @@
 import fs from "fs";
 import path from "path";
-import { request } from "@octokit/graphql";
+import fetch from "node-fetch";
+
+const {
+  INPUT_GITHUB_TOKEN: TOKEN,
+  INPUT_USERNAME: USER,
+  INPUT_MAX_ITEMS,
+  INPUT_EVENT_TEMPLATES,
+  INPUT_README_PATH: README_PATH,
+} = process.env;
+
+if (!TOKEN || !USER) {
+  console.error("❌ Missing github_token or username");
+  process.exit(1);
+}
+
+let templateMap = {};
+try {
+  templateMap = JSON.parse(INPUT_EVENT_TEMPLATES || "{}");
+} catch {
+  console.error("❌ `event_templates` is not valid JSON");
+  process.exit(1);
+}
+
+const MAX = parseInt(INPUT_MAX_ITEMS, 10);
+const README = path.resolve(process.cwd(), README_PATH);
+const START = "<!-- ACTIVITY:START -->";
+const END = "<!-- ACTIVITY:END -->";
+
+function render(tpl, vars) {
+  tpl = tpl.replace(/`/g, "\\`");
+  const expr = tpl.replace(
+    /\{\{\s*([\s\S]+?)\s*\}\}/g,
+    (_, code) => `\${${code}}`
+  );
+  const fn = new Function(...Object.keys(vars), `return \`${expr}\`;`);
+  return fn(...Object.values(vars));
+}
+
+function normalize(e) {
+  const { type, payload, repo, created_at, actor, org } = e;
+  const [owner, name] = repo.name.split("/");
+
+  let num, url;
+  if (payload.issue) {
+    num = payload.issue.number;
+    url = payload.issue.html_url;
+  }
+  if (payload.pull_request) {
+    num = payload.pull_request.number;
+    url = payload.pull_request.html_url;
+  }
+  if (payload.comment) {
+    url = payload.comment.html_url;
+  }
+  return {
+    raw_type: type, // e.g. "IssuesEvent", "PushEvent"
+    event_type:
+      // normalized basics: issues_opened, pr_merged, push, release, create, delete…
+      type === "IssuesEvent"
+        ? `issues_${payload.action}`
+        : type === "PullRequestEvent"
+        ? payload.action === "closed" && payload.pull_request.merged
+          ? "pr_merged"
+          : `pr_${payload.action}`
+        : type === "IssueCommentEvent"
+        ? "issue_commented"
+        : type === "PullRequestReviewEvent"
+        ? `pr_review_${payload.review.state.toLowerCase()}`
+        : type === "PullRequestReviewCommentEvent"
+        ? "pr_review_comment"
+        : // fallback to raw
+          type.replace(/Event$/, "").toLowerCase(),
+    created_at,
+    repo_owner: owner,
+    repo_name: name,
+    repo: repo.name,
+    actor: actor.login,
+    org: org?.login,
+    number: num,
+    url,
+    payload, // entire payload for deep use
+    raw_event: e,
+  };
+}
 
 (async () => {
-  const { GITHUB_TOKEN, INPUT_USERNAME, INPUT_MAX_ITEMS, INPUT_README_PATH } =
-    process.env;
-  if (!GITHUB_TOKEN || !INPUT_USERNAME) {
-    console.error("❌ Missing required inputs: github_token or username");
+  const resp = await fetch(
+    `https://api.github.com/users/${USER}/events?per_page=100`,
+    { headers: { Authorization: `token ${TOKEN}` } }
+  );
+  const raw = await resp.json();
+  if (!Array.isArray(raw)) {
+    console.error(raw);
     process.exit(1);
   }
-  const MAX = parseInt(INPUT_MAX_ITEMS, 10) || 5;
-  const README = path.resolve(process.cwd(), INPUT_README_PATH);
-  const START = "<!-- ACTIVITY:START -->";
-  const END = "<!-- ACTIVITY:END -->";
 
-  const graphql = request.defaults({
-    headers: { authorization: `token ${GITHUB_TOKEN}` },
-  });
+  const evs = raw
+    .map(normalize)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, MAX);
 
-  const QUERY = `
-		query($login: String!, $n: Int!) {
-			user(login: $login) {
-				contributionsCollection {
-					issueContributions(last: $n) {
-						nodes { occurredAt issue { number url repository { nameWithOwner } } }
-					}
-					issueCommentContributions(last: $n) {
-						nodes { occurredAt comment { url issue { number repository { nameWithOwner } } } }
-					}
-					pullRequestContributions(last: $n) {
-						nodes { occurredAt pullRequest { number url merged repository { nameWithOwner } } }
-					}
-					pullRequestReviewContributions(last: $n) {
-						nodes { occurredAt pullRequestReview { state url pullRequest { number repository { nameWithOwner } } } }
-					}
-					pullRequestReviewCommentContributions(last: $n) {
-						nodes { occurredAt comment { url pullRequest { number repository { nameWithOwner } } } }
-					}
-				}
-			}
-		}`;
+  const total = evs.length;
 
-  const data = await graphql(QUERY, {
-    login: INPUT_USERNAME,
-    n: MAX,
-  });
+  const lines = evs
+    .map((ev, i) => {
+      const key = ev.event_type;
+      const rawKey = ev.raw_type;
+      const tpl = templateMap[key] ?? templateMap[rawKey];
+      if (!tpl) return null; // skip if no template or empty
+      const vars = {
+        index: i + 1,
+        rev_index: total - i,
+        total_count: total,
+        ...ev,
+      };
+      return render(tpl, vars);
+    })
+    .filter(Boolean);
 
-  const events = [
-    ...data.user.contributionsCollection.issueContributions.nodes.map((n) => ({
-      date: new Date(n.occurredAt),
-      text: `✨ Created issue [#${n.issue.number}](${n.issue.url}) in **${n.issue.repository.nameWithOwner}**`,
-    })),
-    ...data.user.contributionsCollection.issueCommentContributions.nodes.map(
-      (n) => ({
-        date: new Date(n.occurredAt),
-        text: `💬 Commented on issue [#${n.comment.issue.number}](${n.comment.url}) in **${n.comment.issue.repository.nameWithOwner}**`,
-      })
-    ),
-    ...data.user.contributionsCollection.pullRequestContributions.nodes.map(
-      (n) => ({
-        date: new Date(n.occurredAt),
-        text: n.pullRequest.merged
-          ? `🎉 Merged PR [#${n.pullRequest.number}](${n.pullRequest.url}) in **${n.pullRequest.repository.nameWithOwner}**`
-          : `🚀 Opened PR [#${n.pullRequest.number}](${n.pullRequest.url}) in **${n.pullRequest.repository.nameWithOwner}**`,
-      })
-    ),
-    ...data.user.contributionsCollection.pullRequestReviewContributions.nodes.map(
-      (n) => ({
-        date: new Date(n.occurredAt),
-        text:
-          n.pullRequestReview.state === "APPROVED"
-            ? `✅ Approved review [#${n.pullRequestReview.pullRequest.number}](${n.pullRequestReview.url}) in **${n.pullRequestReview.pullRequest.repository.nameWithOwner}**`
-            : `❌ Requested changes [#${n.pullRequestReview.pullRequest.number}](${n.pullRequestReview.url}) in **${n.pullRequestReview.pullRequest.repository.nameWithOwner}**`,
-      })
-    ),
-    ...data.user.contributionsCollection.pullRequestReviewCommentContributions.nodes.map(
-      (n) => ({
-        date: new Date(n.occurredAt),
-        text: `🗣️ Commented on PR review [#${n.comment.pullRequest.number}](${n.comment.url}) in **${n.comment.pullRequest.repository.nameWithOwner}**`,
-      })
-    ),
-  ];
-
-  const uniq = Array.from(
-    new Map(
-      events.sort((a, b) => b.date - a.date).map((e) => [e.text, e])
-    ).values()
-  ).slice(0, MAX);
-
-  const lines = uniq.map((e, i) => `${i + 1}. ${e.text}`);
-  const block = [START, "", ...lines, "", END].join("\n");
-
+  const block = [START, ...lines, END].join("\n");
   const md = fs.readFileSync(README, "utf8");
-  const updated = md.replace(new RegExp(`${START}[\\s\\S]*?${END}`), block);
+  const out = md.replace(new RegExp(`${START}[\\s\\S]*?${END}`), block);
 
-  if (updated !== md) {
-    fs.writeFileSync(README, updated, "utf8");
+  if (out !== md) {
+    fs.writeFileSync(README, out, "utf8");
     console.log("✅ README updated");
   } else {
-    console.log("ℹ️ No new activity");
+    console.log("ℹ️ No changes");
   }
 })();

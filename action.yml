@@ -1,5 +1,5 @@
 name: "GH Recent Activity Widget"
-description: "📝 Fetch your GH activity and inject into README.md"
+description: "📝 Inject your README with a nicely formatted history of your github interactions"
 author: "FreddyMSchubert <github@frederickschubert.de>"
 branding:
   icon: "activity"
@@ -7,16 +7,44 @@ branding:
 
 inputs:
   github_token:
-    description: "GitHub token with repo scopes"
+    description: "GitHub token (GITHUB_TOKEN or PAT with `repo` & `read:org`)"
     required: true
     default: ${{ github.token }}
+
   username:
     description: "GitHub user to fetch events for"
     required: true
+
   max_items:
-    description: "How many events to show"
+    description: "Max number of events to render"
     required: false
     default: "5"
+
+  event_templates:
+    description: |
+      JSON mapping of event keys → template strings.
+      - **Keys** can be:
+        • **Normalized types** (e.g. `issues_opened`, `pr_merged`, `push`, `release`)  
+        • **Raw GitHub event names** (e.g. `IssuesEvent`, `PushEvent`, `ReleaseEvent`)  
+      - **Values** are JS-templated strings (`{{…}}` executes JS).  
+      - Missing or `""` = skip that event.  
+      ```json
+      {
+        "IssuesEvent": "{{index}}. 🔖 New issue #{{payload.issue.number}} in {{repo}}",
+        "pr_merged": "{{emoji}} Merged PR #{{number}} on {{created_at}}"
+      }
+      ```
+    required: false
+    default: |
+      {
+        "IssuesEvent":   "{{index}}. ⚠️ New issue #{{payload.issue.number}}: {{payload.issue.title}}",
+        "issues_closed": "{{index}}. 🔥 Closed issue #{{number}} by {{actor}}",
+        "PushEvent":     "{{index}}. 🚀 Pushed {{payload.size}} commits to {{payload.ref}}",
+        "release":       "{{index}}. 📡 Released {{payload.release.tag_name}} ({{payload.release.prerelease ? 'pre' : ''}}release)",
+        "fork":          "{{index}}. 🍴 Forked repo to {{payload.forkee.full_name}}",
+        "public":        "{{index}}. 🎸 Made {{repo}} public"
+      }
+
   readme_path:
     description: "Path to README file"
     required: false
