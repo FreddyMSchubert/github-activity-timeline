@@ -91,34 +91,33 @@ function normalize(e) {
     `https://api.github.com/users/${USER}/events?per_page=100`,
     { headers: { Authorization: `token ${TOKEN}` } }
   );
-  const raw = await resp.json();
-  if (!Array.isArray(raw)) {
-    console.error(raw);
+  const rawEvents = await resp.json();
+  if (!Array.isArray(rawEvents)) {
+    console.error(rawEvents);
     process.exit(1);
   }
 
-  const evs = raw
+  const normalized = rawEvents
     .map(normalize)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, MAX);
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const total = evs.length;
+  const filtered = normalized.filter((ev) => {
+    const hasTpl = templateMap[ev.event_type] ?? templateMap[ev.raw_type];
+    return hasTpl && hasTpl.trim() !== "";
+  });
 
-  const lines = evs
-    .map((ev, i) => {
-      const key = ev.event_type;
-      const rawKey = ev.raw_type;
-      const tpl = templateMap[key] ?? templateMap[rawKey];
-      if (!tpl) return null; // skip if no template or empty
-      const vars = {
-        index: i + 1,
-        rev_index: total - i,
-        total_count: total,
-        ...ev,
-      };
-      return render(tpl, vars);
-    })
-    .filter(Boolean);
+  const selected = filtered.slice(0, MAX);
+
+  const lines = selected.map((ev, i) => {
+    const key = ev.event_type in templateMap ? ev.event_type : ev.raw_type;
+    const tpl = templateMap[key];
+    const vars = {
+      index: i + 1,
+      total_count: selected.length,
+      ...ev,
+    };
+    return render(tpl, vars);
+  });
 
   const block = [START, ...lines, END].join("\n");
   const md = fs.readFileSync(README, "utf8");
