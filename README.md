@@ -42,6 +42,8 @@ jobs:
 					branch: 'main'
 ```
 
+> If you don't want to dive deep into the customization opportunities, you can copy [my config](https://github.com/FreddyMSchubert/FreddyMSchubert/blob/main/.github/workflows/activity.yml).
+
 ### 2. Annotate your README where updates belong:
 
 ```
