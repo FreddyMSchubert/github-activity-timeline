@@ -51,8 +51,25 @@ inputs:
     default: "README.md"
 
 runs:
-  using: "node16"
-  main: "src/index.js"
+  using: "composite"
+  steps:
+    - name: Install dependencies 🔧
+      shell: bash
+      working-directory: $GITHUB_ACTION_PATH
+      run: |
+        npm install --production
+
+    - name: Run activity script 🚀
+      shell: bash
+      working-directory: $GITHUB_ACTION_PATH
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        USER: ${{ inputs.username }}
+        MAX_ITEMS: ${{ inputs.max_items }}
+        EVENT_TEMPLATES: ${{ inputs.event_templates }}
+        README_PATH: ${{ inputs.readme_path }}
+      run: |
+        node src/index.js
 
 permissions:
   contents: write
