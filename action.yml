@@ -21,9 +21,14 @@ inputs:
     default: "5"
 
   time_zone:
-    description: "Timezone for date formatting"
+    description: "Timezone for date formatting (IANA time zone identifier)"
     required: false
     default: "UTC"
+
+  date_format:
+    description: "Date format for events (e.g. 'DD.MM.YYYY')"
+    required: false
+    default: "DD.MM.YYYY"
 
   event_templates:
     description: |
@@ -77,6 +82,7 @@ runs:
         INPUT_EVENT_TEMPLATES: ${{ inputs.event_templates }}
         INPUT_README_PATH: ${{ inputs.readme_path }}
         INPUT_TIMEZONE: ${{ inputs.time_zone }}
+        INPUT_DATE_FORMAT: ${{ inputs.date_format }}
 
 permissions:
   contents: write
