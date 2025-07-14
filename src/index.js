@@ -43,7 +43,7 @@ function formatDate(dateString, tz) {
 
   const msPerDay = 24 * 60 * 60 * 1000;
   const diffDays = Math.floor(
-    (localNow.setHours(0, 0, 0, 0) - localEvent.setHours(0, 0, 0, 0)) / msPerDay
+    (new Date(localNow.getTime()).setHours(0, 0, 0, 0) - new Date(localEvent.getTime()).setHours(0, 0, 0, 0)) / msPerDay
   );
 
   if (diffDays === 0) return "Today";
