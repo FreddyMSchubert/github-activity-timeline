@@ -8,11 +8,16 @@ const {
   INPUT_MAX_ITEMS,
   INPUT_EVENT_TEMPLATES,
   INPUT_README_PATH: README_PATH,
+  INPUT_TIMEZONE: RAW_TZ,
 } = process.env;
 
 if (!TOKEN || !USER) {
   console.error("❌ Missing github_token or username");
   process.exit(1);
+}
+const USER_TZ = RAW_TZ && RAW_TZ.trim() !== "" ? RAW_TZ : "UTC";
+if (!RAW_TZ) {
+  console.warn(`⚠️ No INPUT_TIMEZONE provided; defaulting to '${USER_TZ}'.`);
 }
 
 let templateMap = {};
@@ -23,12 +28,43 @@ try {
   process.exit(1);
 }
 
+function formatDate(dateString, tz) {
+  let eventDate = new Date(dateString);
+  let localNow, localEvent;
+
+  try {
+    localNow = new Date(new Date().toLocaleString("en-US", { timeZone: tz }));
+    localEvent = new Date(eventDate.toLocaleString("en-US", { timeZone: tz }));
+  } catch (err) {
+    console.warn(`⚠️ Invalid time zone '${tz}', falling back to UTC.`);
+    localNow = new Date();
+    localEvent = new Date(dateString);
+  }
+
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const diffDays = Math.floor(
+    (localNow.setHours(0, 0, 0, 0) - localEvent.setHours(0, 0, 0, 0)) / msPerDay
+  );
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays > 1 && diffDays <= 7) return `${diffDays} days ago`;
+
+  return eventDate.toLocaleDateString("de", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    timeZone: tz,
+  });
+}
+
 const MAX = parseInt(INPUT_MAX_ITEMS, 10);
 const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
 const README = path.resolve(workspace, README_PATH);
 const START = "<!-- ACTIVITY:START -->";
 const END = "<!-- ACTIVITY:END -->";
 
+// Templating function
 function render(tpl, vars) {
   tpl = tpl.replace(/`/g, "\\`");
   const expr = tpl.replace(
@@ -99,6 +135,7 @@ function normalize(e) {
 
   const normalized = rawEvents
     .map(normalize)
+    .map((ev) => ({ ...ev, human_date: formatDate(ev.created_at, USER_TZ) }))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const filtered = normalized.filter((ev) => {
@@ -114,6 +151,7 @@ function normalize(e) {
     const vars = {
       index: i + 1,
       total_count: selected.length,
+      human_date: ev.human_date,
       ...ev,
     };
     return render(tpl, vars);
